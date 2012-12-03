@@ -3,6 +3,9 @@ package com.thesamet.spatial
 import scala.annotation.tailrec
 import scala.math.Ordering.Implicits._
 import scala.math.Numeric.Implicits._
+import scala.collection.{IterableLike, MapLike}
+import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable.{ArrayBuffer, Builder}
 
 /** DimensionalOrdering is a trait whose instances each represent a strategy for ordering instances
   * of a multidimensional type by a projection on a given dimension.
@@ -48,12 +51,24 @@ trait DimensionalOrdering[A] {
 }
 
 object DimensionalOrdering {
-  implicit def dimOrderingFromTuple2[A](implicit ord: Ordering[A]) =
-      new DimensionalOrdering[(A, A)] {
-        def dimensions = 2
-        def compareProjection(d: Int)(x: (A, A), y: (A, A)) = ord.compare(
-          x.productElement(d).asInstanceOf[A], y.productElement(d).asInstanceOf[A])
-      }
+  def dimensionalOrderingForTuple[T <: Product,A](dim: Int)(implicit ord: Ordering[A]) =
+    new DimensionalOrdering[T] {
+      val dimensions = dim
+      def compareProjection(d: Int)(x: T, y: T) = ord.compare(
+        x.productElement(d).asInstanceOf[A], y.productElement(d).asInstanceOf[A])
+    }
+
+  implicit def dimensionalOrderingForTuple2[A](implicit ord: Ordering[A]) =
+    dimensionalOrderingForTuple[(A, A), A](2)
+
+  implicit def dimensionalOrderingForTuple3[A](implicit ord: Ordering[A]) =
+    dimensionalOrderingForTuple[(A, A, A), A](3)
+
+  implicit def dimensionalOrderingForTuple4[A](implicit ord: Ordering[A]) =
+    dimensionalOrderingForTuple[(A, A, A, A), A](4)
+
+  implicit def dimensionalOrderingForTuple5[A](implicit ord: Ordering[A]) =
+    dimensionalOrderingForTuple[(A, A, A, A, A), A](5)
 }
 
 /** Metric is a trait whose instances each represent a way to measure distances between
@@ -85,39 +100,66 @@ object Metric {
   }
 }
 
-class KDTree[A] private (root: KDTreeNode[A]) {
-  def size: Int = root.size
+class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends IterableLike[A, KDTree[A]] {
+  override def seq = this
+
+  override def size: Int = root.size
+
+  override def iterator: Iterator[A] = root.toStream.iterator map (_. _1)
+
+  def contains(x: A): Boolean = root.get(x).isDefined
+
   def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], numeric: Numeric[R]): Seq[A] =
-      root.findNearest(x, n)
+      root.findNearest(x, n) map (_._1)
+
+  def newBuilder: Builder[A, KDTree[A]] = KDTree.newBuilder
 }
 
-class KDTreeMap[A, B] private (root: KDTreeNode[(A, B)]) {
-  def size: Int = root.size
+class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: DimensionalOrdering[A])
+    extends Map[A, B] with MapLike[A, B, KDTreeMap[A, B]] {
+
+  override def empty: KDTreeMap[A, B] = KDTreeMap.empty[A, B](ord)
+
+  override def size: Int = root.size
+
+  override def iterator: Iterator[(A, B)] = root.toStream.iterator
+
+  def get(x: A): Option[B] = root.get(x)
+
   def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], numeric: Numeric[R]): Seq[(A, B)] =
-      root.findNearest((x, null.asInstanceOf[B]), n)(KDTreeMap.liftMetric(metric), numeric)
+      root.findNearest(x, n)
+
+  def +[B1 >: B](kv: (A, B1)): KDTreeMap[A, B1] = KDTreeMap.fromSeq(toSeq ++ Seq(kv))
+  def -(key: A): KDTreeMap[A, B] = KDTreeMap.fromSeq(toSeq.filter(_._1 != key))
 }
 
-sealed trait KDTreeNode[A] {
+sealed trait KDTreeNode[A, B] {
   override def toString = toStringSeq(0) mkString "\n"
   def toStringSeq(indent: Int): Seq[String]
   def size: Int
   def isEmpty: Boolean
-  def findNearest0[R](x: A, n: Int, skipParent: KDTreeNode[A], values: Seq[(A, R)])(
-      implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, R)]
-  def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[A]
-  def findMinimalParent(x: A, withSize: Int): KDTreeNode[A]
-  def valueSeq: Seq[A]
+  def findNearest0[R](x: A, n: Int, skipParent: KDTreeNode[A, B], values: Seq[((A, B), R)])(
+      implicit metric: Metric[A, R], ord: Ordering[R]): Seq[((A, B), R)]
+  def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, B)]
+  def toStream: Stream[(A, B)]
+  def toSeq: Seq[(A, B)]
+
+  @tailrec
+  final def get(x: A): Option[B] = this match {
+    case n@ KDTreeInnerNode(dim, k, v, below, above) =>
+    if (k == x) Some(v)
+    else (if (n.isAbove(x)) above else below).get(x)
+    case n@ KDTreeEmpty() => None
+  }
 }
 
-case class KDTreeInnerNode[A](dim: Int, point: A, below: KDTreeNode[A],
-                              above: KDTreeNode[A])(ordering: Ordering[A])
-    extends KDTreeNode[A] {
+case class KDTreeInnerNode[A, B](
+    dim: Int, key: A, value: B, below: KDTreeNode[A, B], above: KDTreeNode[A, B])(
+    ordering: Ordering[A]) extends KDTreeNode[A, B] {
   def toStringSeq(indent:Int) = {
     val i = "  " * indent
 
-    Seq(i + "size=%d dim=%d point=%s ".format(size, dim,
-
-     point),
+    Seq(i + "size=%d dim=%d key=%s ".format(size, dim, key),
         i + "Below:") ++ below.toStringSeq(indent + 1) ++ Seq(i + "Above:") ++
         above.toStringSeq(indent + 1)
   }
@@ -126,44 +168,34 @@ case class KDTreeInnerNode[A](dim: Int, point: A, below: KDTreeNode[A],
 
   def isEmpty = false
 
-  def isBelow(x: A) = ordering.lt(x, point)
+  def isBelow(x: A) = ordering.lt(x, key)
 
-  def isAbove(x: A) = ordering.gt(x, point)
+  def isAbove(x: A) = ordering.gt(x, key)
 
-  def findMinimalParent(x: A, withSize: Int): KDTreeNode[A]  = {
-    if (isBelow(x)) {
-      if (below.size < withSize) this
-      else below.findMinimalParent(x, withSize)
-    } else if (isAbove(x)) {
-      if (above.size < withSize) this
-      else above.findMinimalParent(x, withSize)
-    } else this
-  }
+  def isEquiv(x: A) = ordering.equiv(x, key)
 
-  def valueSeq: Seq[A] = below.valueSeq ++ above.valueSeq :+ point
-
-  def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[A] = {
+  def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, B)] = {
     // Build initial set of candidates from the smallest subtree containing x with at least n
     // points.
-    val p = findMinimalParent(x, withSize=n)
-    val values = p.valueSeq map { p => (p, metric.distance(x, p)) } sortBy(_._2) take(n)
-    findNearest0(x, n, p, values) map { _._1 }
+    val minParent = KDTreeNode.findMinimalParent(this, x, withSize=n)
+    val values = (minParent.toSeq.map {p => (p, metric.distance(x, p._1)) }).sortBy(_._2).take(n)
+    findNearest0(x, n, minParent, values) map { _._1 }
   }
 
-  def findNearest0[R](x: A, n: Int, skipParent: KDTreeNode[A], values: Seq[(A, R)])(
-      implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, R)] = {
+  def findNearest0[R](x: A, n: Int, skipParent: KDTreeNode[A, B], values: Seq[((A, B), R)])(
+      implicit metric: Metric[A, R], ord: Ordering[R]): Seq[((A, B), R)] = {
     if (skipParent eq this) values
     else {
-      val myDist = metric.distance(point, x)
+      val myDist = metric.distance(key, x)
       val currentBest = values.last._2
 
       val newValues = if (myDist < currentBest) {
-        (values :+ (point, myDist)) sortBy(_._2) take(n)
+        (values :+ ((key, value), myDist)) sortBy(_._2) take(n)
       }
       else values
       val newCurrentBest = values.last._2
 
-      val dp = metric.planarDistance(dim)(x, point)
+      val dp = metric.planarDistance(dim)(x, key)
 
       if (dp < newCurrentBest) {
         val values2 = above.findNearest0(x, n, skipParent, newValues)
@@ -175,60 +207,76 @@ case class KDTreeInnerNode[A](dim: Int, point: A, below: KDTreeNode[A],
       } else sys.error("Unexpected value!")
     }
   }
+
+  def toStream: Stream[(A, B)] = below.toStream ++ Stream((key, value)) ++ above.toStream
+
+  def toSeq: Seq[(A, B)] = below.toSeq ++ Seq((key, value)) ++ above.toSeq
 }
 
-case class KDTreeEmpty[A]() extends KDTreeNode[A] {
+case class KDTreeEmpty[A, B]() extends KDTreeNode[A, B] {
   def toStringSeq(indent: Int) = Seq(("  " * indent) + "[Empty]")
   def size = 0
   def isEmpty = true
-  def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[A] =
+  def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, B)] =
       Seq.empty
-  def findNearest0[R](x: A, n: Int, skipParent: KDTreeNode[A], values: Seq[(A, R)])(
-      implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, R)] = values
-  def findMinimalParent(x: A, withSize: Int): KDTreeNode[A] = sys.error("Unexpected.")
-  def valueSeq: Seq[A] = Seq.empty
+  def findNearest0[R](x: A, n: Int, skipParent: KDTreeNode[A, B], values: Seq[((A, B), R)])(
+      implicit metric: Metric[A, R], ord: Ordering[R]): Seq[((A, B), R)] = values
+  def toSeq: Seq[(A, B)] = Seq.empty
+  def toStream: Stream[(A, B)] = Stream.empty
 }
 
 object KDTreeNode {
-  def buildTreeNode[A](depth: Int, points: Seq[A])(
-      implicit ord: DimensionalOrdering[A]): KDTreeNode[A] = {
-    def findSplit(points: Seq[A], i: Int): (A, Seq[A], Seq[A]) = {
-      val sp = points.sorted(ord.orderingBy(i))
+  def buildTreeNode[A, B](depth: Int, points: Seq[(A, B)])(
+      implicit ord: DimensionalOrdering[A]): KDTreeNode[A, B] = {
+    def findSplit(points: Seq[(A, B)], i: Int): ((A, B), Seq[(A, B)], Seq[(A, B)]) = {
+      val sp = points.sortBy(_._1)(ord.orderingBy(i))
       val medIndex = sp.length / 2
       (sp(medIndex), sp.take(medIndex), sp.drop(medIndex + 1))
     }
 
-    if (points.isEmpty) KDTreeEmpty[A]
+    if (points.isEmpty) KDTreeEmpty[A, B]
     else {
       val i = depth % ord.dimensions
-      val (median, below, above) = findSplit(points, i)
+      val ((key, value), below, above) = findSplit(points, i)
       KDTreeInnerNode(
-        i, median, buildTreeNode(depth+1, below),
+        i, key, value, buildTreeNode(depth+1, below),
         buildTreeNode(depth + 1, above))(ord.orderingBy(i))
     }
   }
+
+  @tailrec
+  def findMinimalParent[A, B](node: KDTreeInnerNode[A, B], x: A, withSize: Int):
+      KDTreeInnerNode[A, B] = if (node.key == x) node
+      else {
+        val next = if (node.isBelow(x)) node.below else node.above
+        if (next.size < withSize) node
+        else findMinimalParent(next.asInstanceOf[KDTreeInnerNode[A, B]], x, withSize)
+      }
 }
 
 object KDTree {
-  def buildTree[A](points: A*)(implicit ord: DimensionalOrdering[A]) = {
+  def apply[A](points: A*)(implicit ord: DimensionalOrdering[A]) = fromSeq(points)
+
+  def fromSeq[A](points: Seq[A])(implicit ord: DimensionalOrdering[A]) = {
     assert(ord.dimensions >= 1)
-    new KDTree(KDTreeNode.buildTreeNode(0, points))
+    new KDTree(KDTreeNode.buildTreeNode(0, points map {(_, true)}))
+  }
+
+  def newBuilder[A](implicit ord: DimensionalOrdering[A]): Builder[A, KDTree[A]] =
+    new ArrayBuffer[A]() mapResult(x=>KDTree.fromSeq(x))
+
+  implicit def canBuildFrom[B](implicit ordB: DimensionalOrdering[B]):
+    CanBuildFrom[KDTree[_], B, KDTree[B]] = new CanBuildFrom[KDTree[_], B, KDTree[B]] {
+      def apply: Builder[B, KDTree[B]] = newBuilder(ordB)
+      def apply(from: KDTree[_]): Builder[B, KDTree[B]] = newBuilder(ordB)
   }
 }
 
 object KDTreeMap {
-  def buildTreeMap[A, B](points: (A, B)*)(implicit ord: DimensionalOrdering[A]) =
-    new KDTreeMap(KDTreeNode.buildTreeNode(0, points))
-  implicit def liftMetric[A, B, R](implicit metric: Metric[A, R]): Metric[(A, B), R] =
-      new Metric[(A, B), R] {
-    def distance(x: (A, B), y: (A, B)) = metric.distance(x._1, y._1)
-    def planarDistance(dimension: Int)(x: (A, B), y: (A, B)) =
-      metric.planarDistance(dimension)(x._1, y._1)
-  }
+  def empty[A, B](implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] = KDTreeMap()
 
-  implicit def liftDimensionalOrdering[A, B](implicit ord: DimensionalOrdering[A]):
-      DimensionalOrdering[(A, B)] = new DimensionalOrdering[(A, B)] {
-        val dimensions = ord.dimensions
-        def compareProjection(dim: Int)(x: (A, B), y: (A, B)) = ord.compareProjection(dim)(x._1, y._1)
-      }
+  def apply[A, B](points: (A, B)*)(implicit ord: DimensionalOrdering[A]) = fromSeq(points)
+
+  def fromSeq[A, B](points: Seq[(A, B)])(implicit ord: DimensionalOrdering[A]) =
+    new KDTreeMap(KDTreeNode.buildTreeNode(0, points))
 }
