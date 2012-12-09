@@ -92,6 +92,21 @@ class NearestNeighborTest extends FlatSpec with ShouldMatchers {
 
     t.findNearest((27, 0), 4).toSet should equal (
       Set((27, 1), (26, 1), (28, 1), (27, 2)))
+
+    t.regionQuery(new RegionBuilder[(Int, Int)] {
+      from((7, 7), 1)
+    })
+
+    t.regionQuery(Region.from((73, 73), 1)).toSet should equal ((for {
+      x <- 1 to 100; y <- 73 to 100} yield (x, y)).toSet)
+
+    t.regionQuery(Region.to((17, 73), 0)).toSet should equal ((for {
+      x <- 1 to 17; y <- 1 to 100} yield (x, y)).toSet)
+
+    t.regionQuery(
+      Region from((35, 0), 0) to((43, 0), 0) from((0, 81), 1) to((0, 84), 1)
+      ).toSet should equal ((for {
+        x <- 35 to 43; y <- 81 to 84} yield (x, y)).toSet)
   }
 }
 
@@ -155,3 +170,4 @@ class KDTreeMapTest extends FlatSpec with ShouldMatchers {
     newMap.get((12, 7)) should equal (Some("c"))
   }
 }
+

@@ -7,99 +7,6 @@ import scala.collection.{IterableLike, MapLike}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.{ArrayBuffer, Builder}
 
-/** DimensionalOrdering is a trait whose instances each represent a strategy for ordering instances
-  * of a multidimensional type by a projection on a given dimension.
-  */
-trait DimensionalOrdering[A] {
-  /** How many dimensions type A has. */
-  def dimensions: Int
-
-  /** Returns an integer whose sign communicates how x's projection on a given dimension compares
-    * to y's.
-    *
-    * Denote the projection of x and y on `dimension` by x' and y' respectively. The result sign has
-    * the following meaning:
-    *
-    * - negative if x' < y'
-    * - positive if x' > y'
-    * - zero if x' == y'
-    */
-  def compareProjection(dimension: Int)(x: A, y: A): Int
-
-  /** Returns an Ordering of A in which the given dimension is the primary ordering criteria.
-    * If x and y have the same projection on that dimension, then they are compared on the lowest
-    * dimension that is different.
-    */
-  def orderingBy(dimension: Int): Ordering[A] = new Ordering[A] {
-    def compare(x: A, y: A): Int = {
-      @tailrec
-      def compare0(cd: Int): Int = {
-        if (cd == dimensions) 0
-        else {
-          val c = compareProjection(cd)(x, y)
-          if (c != 0) c
-          else compare0(cd + 1)
-        }
-      }
-
-      compareProjection(dimension)(x, y) match {
-        case t if t != 0 => t
-        case 0 => compare0(0)
-      }
-    }
-  }
-}
-
-object DimensionalOrdering {
-  def dimensionalOrderingForTuple[T <: Product,A](dim: Int)(implicit ord: Ordering[A]) =
-    new DimensionalOrdering[T] {
-      val dimensions = dim
-      def compareProjection(d: Int)(x: T, y: T) = ord.compare(
-        x.productElement(d).asInstanceOf[A], y.productElement(d).asInstanceOf[A])
-    }
-
-  implicit def dimensionalOrderingForTuple2[A](implicit ord: Ordering[A]) =
-    dimensionalOrderingForTuple[(A, A), A](2)
-
-  implicit def dimensionalOrderingForTuple3[A](implicit ord: Ordering[A]) =
-    dimensionalOrderingForTuple[(A, A, A), A](3)
-
-  implicit def dimensionalOrderingForTuple4[A](implicit ord: Ordering[A]) =
-    dimensionalOrderingForTuple[(A, A, A, A), A](4)
-
-  implicit def dimensionalOrderingForTuple5[A](implicit ord: Ordering[A]) =
-    dimensionalOrderingForTuple[(A, A, A, A, A), A](5)
-}
-
-/** Metric is a trait whose instances each represent a way to measure distances between
-  * instances of a type.
-  *
-  * `A` represents the type of the points and `R` represents the metric value.
-  */
-trait Metric[A, R] {
-  /** Returns the distance between two points. */
-  def distance(x: A, y: A): R
-
-  /** Returns the distance between x and a hyperplane that passes through y and perpendicular to
-    * that dimension.
-    */
-  def planarDistance(dimension: Int)(x: A, y: A): R
-}
-
-object Metric {
-  implicit def metricFromTuple2[A](implicit n: Numeric[A]) = new Metric[(A, A), A] {
-    def distance(x: (A, A), y: (A, A)): A = {
-      val dx = (x._1 - y._1)
-      val dy = (x._2 - y._2)
-      dx * dx + dy * dy
-    }
-    def planarDistance(d: Int)(x: (A, A), y: (A, A)): A = {
-      val dd = x.productElement(d).asInstanceOf[A] - y.productElement(d).asInstanceOf[A]
-      dd * dd
-    }
-  }
-}
-
 class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends IterableLike[A, KDTree[A]] {
   override def seq = this
 
@@ -111,6 +18,8 @@ class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: Dimensional
 
   def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], numeric: Numeric[R]): Seq[A] =
       root.findNearest(x, n) map (_._1)
+
+  def regionQuery(region: Region[A]): Seq[A] = root.regionQuery(region) map (_._1)
 
   def newBuilder: Builder[A, KDTree[A]] = KDTree.newBuilder
 }
@@ -129,6 +38,8 @@ class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: Dimensional
   def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], numeric: Numeric[R]): Seq[(A, B)] =
       root.findNearest(x, n)
 
+  def regionQuery(region: Region[A]): Seq[(A, B)] = root.regionQuery(region)
+
   def +[B1 >: B](kv: (A, B1)): KDTreeMap[A, B1] = KDTreeMap.fromSeq(toSeq ++ Seq(kv))
   def -(key: A): KDTreeMap[A, B] = KDTreeMap.fromSeq(toSeq.filter(_._1 != key))
 }
@@ -143,6 +54,7 @@ sealed trait KDTreeNode[A, B] {
   def findNearest[R](x: A, n: Int)(implicit metric: Metric[A, R], ord: Ordering[R]): Seq[(A, B)]
   def toStream: Stream[(A, B)]
   def toSeq: Seq[(A, B)]
+  def regionQuery(region: Region[A])(implicit ord: DimensionalOrdering[A]): Seq[(A, B)]
 
   @tailrec
   final def get(x: A): Option[B] = this match {
@@ -208,6 +120,15 @@ case class KDTreeInnerNode[A, B](
     }
   }
 
+  def regionQuery(region: Region[A])(implicit ord: DimensionalOrdering[A]): Seq[(A, B)] = {
+    (if (region.overlapsWith(BelowHyperplane(key, dim)))
+      below.regionQuery(region) else Nil) ++
+    (if (region.contains(key))
+      Seq((key, value)) else Nil) ++
+    (if (region.overlapsWith(AboveHyperplane(key, dim)))
+      above.regionQuery(region) else Nil)
+  }
+
   def toStream: Stream[(A, B)] = below.toStream ++ Stream((key, value)) ++ above.toStream
 
   def toSeq: Seq[(A, B)] = below.toSeq ++ Seq((key, value)) ++ above.toSeq
@@ -223,6 +144,7 @@ case class KDTreeEmpty[A, B]() extends KDTreeNode[A, B] {
       implicit metric: Metric[A, R], ord: Ordering[R]): Seq[((A, B), R)] = values
   def toSeq: Seq[(A, B)] = Seq.empty
   def toStream: Stream[(A, B)] = Stream.empty
+  def regionQuery(region: Region[A])(implicit ord: DimensionalOrdering[A]): Seq[(A, B)] = Seq.empty
 }
 
 object KDTreeNode {
