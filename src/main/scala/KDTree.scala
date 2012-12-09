@@ -59,8 +59,8 @@ sealed trait KDTreeNode[A, B] {
   @tailrec
   final def get(x: A): Option[B] = this match {
     case n@ KDTreeInnerNode(dim, k, v, below, above) =>
-    if (k == x) Some(v)
-    else (if (n.isAbove(x)) above else below).get(x)
+      if (k == x) Some(v)
+      else (if (n.isAbove(x)) above else below).get(x)
     case n@ KDTreeEmpty() => None
   }
 }
