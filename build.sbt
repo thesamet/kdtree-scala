@@ -8,6 +8,10 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "1.8" % "test"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation")
 
+scalaVersion := "2.9.2"
+
+crossScalaVersions := Seq("2.9.1", "2.9.2")
+
 publishMavenStyle := true
 
 publishArtifact in Test := false
@@ -24,9 +28,8 @@ pomExtra := (
     </license>
   </licenses>
   <scm>
-  <connection>scm:git:git@github.com:thesamet/kdtree-scala.git</connection>
     <url>https://github.com/thesamet/kdtree-scala</url>
-    <connection>scm:git:git@github.com:janm399/specs2-spring.git</connection>
+    <connection>scm:git:git@github.com:thesamet/kdtree-scala.git</connection>
   </scm>
   <developers>
     <developer>
