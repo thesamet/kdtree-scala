@@ -2,15 +2,15 @@ organization := "com.thesamet"
 
 name := "kdtree"
 
-version := "1.0"
+version := "1.0.1"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "1.8" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "1.9.1" % "test"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 scalaVersion := "2.9.2"
 
-crossScalaVersions := Seq("2.9.1", "2.9.2")
+crossScalaVersions := Seq("2.10.0-RC1", "2.9.2")
 
 publishMavenStyle := true
 
