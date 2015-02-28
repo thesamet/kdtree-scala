@@ -1,6 +1,6 @@
 package com.thesamet.spatial
 
-import scala.math.Ordering.Implicits._
+import scala.language.implicitConversions
 
 sealed trait Region[A] {
   def overlapsWith(other: Region[A])(implicit ord: DimensionalOrdering[A]): Boolean
@@ -17,7 +17,7 @@ case class AboveHyperplane[A](a: A, dim: Int) extends Region[A] {
     case EntireSpace() => true
     case AboveHyperplane(b, bdim) => true
     case BelowHyperplane(b, bdim) => (dim != bdim) || (ord.compareProjection(dim)(b, a) >= 0)
-    case RegionIntersection(regions) => regions.forall(overlapsWith _)
+    case RegionIntersection(regions) => regions.forall(overlapsWith)
   }
   def contains(p: A)(implicit ord: DimensionalOrdering[A]): Boolean =
       ord.compareProjection(dim)(p, a) >= 0

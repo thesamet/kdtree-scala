@@ -4,6 +4,7 @@ import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.{ArrayBuffer, Builder}
 import scala.collection.{IterableLike, MapLike}
+import scala.language.implicitConversions
 import scala.math.Ordering.Implicits._
 
 class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends Iterable[A] with IterableLike[A, KDTree[A]] {
@@ -89,7 +90,7 @@ case class KDTreeInnerNode[A, B](
     // Build initial set of candidates from the smallest subtree containing x with at least n
     // points.
     val minParent = KDTreeNode.findMinimalParent(this, x, withSize = n)
-    val values = (minParent.toSeq.map { p => (p, metric.distance(x, p._1)) }).sortBy(_._2).take(n)
+    val values = minParent.toSeq.map { p => (p, metric.distance(x, p._1))}.sortBy(_._2).take(n)
     findNearest0(x, n, minParent, values) map { _._1 }
   }
 
@@ -101,7 +102,7 @@ case class KDTreeInnerNode[A, B](
       val currentBest = values.last._2
 
       val newValues = if (myDist < currentBest) {
-        (values :+ ((key, value), myDist)) sortBy (_._2) take (n)
+        (values :+ ((key, value), myDist)) sortBy (_._2) take n
       } else values
       val newCurrentBest = values.last._2
 
@@ -185,7 +186,7 @@ object KDTree {
     new ArrayBuffer[A]() mapResult (x => KDTree.fromSeq(x))
 
   implicit def canBuildFrom[B](implicit ordB: DimensionalOrdering[B]): CanBuildFrom[KDTree[_], B, KDTree[B]] = new CanBuildFrom[KDTree[_], B, KDTree[B]] {
-    def apply: Builder[B, KDTree[B]] = newBuilder(ordB)
+    def apply(): Builder[B, KDTree[B]] = newBuilder(ordB)
     def apply(from: KDTree[_]): Builder[B, KDTree[B]] = newBuilder(ordB)
   }
 }
