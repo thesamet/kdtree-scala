@@ -4,7 +4,7 @@ name := "kdtree"
 
 version := "1.0.1"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "1.9.1" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation")
 
