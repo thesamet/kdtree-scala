@@ -6,7 +6,7 @@ import scala.language.implicitConversions
 /** DimensionalOrdering is a trait whose instances each represent a strategy for ordering instances
   * of a multidimensional type by a projection on a given dimension.
   */
-trait DimensionalOrdering[A] {
+trait DimensionalOrdering[A] extends Serializable{
   /** How many dimensions type A has. */
   def dimensions: Int
 

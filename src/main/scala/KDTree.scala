@@ -7,7 +7,8 @@ import scala.collection.{IterableLike, MapLike}
 import scala.language.implicitConversions
 import scala.math.Ordering.Implicits._
 
-class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends Iterable[A] with IterableLike[A, KDTree[A]] {
+class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A])
+  extends Iterable[A] with IterableLike[A, KDTree[A]] with Serializable {
   override def seq = this
 
   override def size: Int = root.size
@@ -25,7 +26,7 @@ class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: Dimensional
 }
 
 class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: DimensionalOrdering[A])
-  extends Map[A, B] with MapLike[A, B, KDTreeMap[A, B]] {
+  extends Map[A, B] with MapLike[A, B, KDTreeMap[A, B]] with Serializable {
 
   override def empty: KDTreeMap[A, B] = KDTreeMap.empty[A, B](ord)
 
@@ -44,7 +45,7 @@ class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: Dimensional
   def -(key: A): KDTreeMap[A, B] = KDTreeMap.fromSeq(toSeq.filter(_._1 != key))
 }
 
-sealed trait KDTreeNode[A, B] {
+sealed trait KDTreeNode[A, B] extends Serializable {
   override def toString = toStringSeq(0) mkString "\n"
   def toStringSeq(indent: Int): Seq[String]
   def size: Int
@@ -67,7 +68,7 @@ sealed trait KDTreeNode[A, B] {
 
 case class KDTreeInnerNode[A, B](
   dim: Int, key: A, value: B, below: KDTreeNode[A, B], above: KDTreeNode[A, B])(
-    ordering: Ordering[A]) extends KDTreeNode[A, B] {
+    ordering: Ordering[A]) extends KDTreeNode[A, B] with Serializable {
   def toStringSeq(indent: Int) = {
     val i = "  " * indent
 
@@ -133,7 +134,7 @@ case class KDTreeInnerNode[A, B](
   def toSeq: Seq[(A, B)] = below.toSeq ++ Seq((key, value)) ++ above.toSeq
 }
 
-case class KDTreeEmpty[A, B]() extends KDTreeNode[A, B] {
+case class KDTreeEmpty[A, B]() extends KDTreeNode[A, B] with Serializable {
   def toStringSeq(indent: Int) = Seq(("  " * indent) + "[Empty]")
   def size = 0
   def isEmpty = true
