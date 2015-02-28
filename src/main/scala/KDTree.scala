@@ -155,7 +155,7 @@ object KDTreeNode {
       (sp(medIndex), sp.take(medIndex), sp.drop(medIndex + 1))
     }
 
-    if (points.isEmpty) KDTreeEmpty[A, B]
+    if (points.isEmpty) KDTreeEmpty[A, B]()
     else {
       val i = depth % ord.dimensions
       val ((key, value), below, above) = findSplit(points, i)
@@ -175,9 +175,9 @@ object KDTreeNode {
 }
 
 object KDTree {
-  def apply[A](points: A*)(implicit ord: DimensionalOrdering[A]) = fromSeq(points)
+  def apply[A](points: A*)(implicit ord: DimensionalOrdering[A]): KDTree[A] = fromSeq(points)
 
-  def fromSeq[A](points: Seq[A])(implicit ord: DimensionalOrdering[A]) = {
+  def fromSeq[A](points: Seq[A])(implicit ord: DimensionalOrdering[A]): KDTree[A] = {
     assert(ord.dimensions >= 1)
     new KDTree(KDTreeNode.buildTreeNode(0, points map { (_, true) }))
   }
@@ -194,8 +194,8 @@ object KDTree {
 object KDTreeMap {
   def empty[A, B](implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] = KDTreeMap()
 
-  def apply[A, B](points: (A, B)*)(implicit ord: DimensionalOrdering[A]) = fromSeq(points)
+  def apply[A, B](points: (A, B)*)(implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] = fromSeq(points)
 
-  def fromSeq[A, B](points: Seq[(A, B)])(implicit ord: DimensionalOrdering[A]) =
+  def fromSeq[A, B](points: Seq[(A, B)])(implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] =
     new KDTreeMap(KDTreeNode.buildTreeNode(0, points))
 }
