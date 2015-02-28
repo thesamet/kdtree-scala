@@ -1,9 +1,10 @@
 package com.thesamet.spatial
 
 import org.scalatest._
-import org.scalatest.matchers.ShouldMatchers
 
-class RegionTest extends FlatSpec with ShouldMatchers {
+import scala.language.postfixOps
+
+class RegionTest extends FlatSpec with Matchers {
   def sandwitch(a: Int, b: Int) =
     RegionIntersection(Seq(AboveHyperplane((3, a), 1), BelowHyperplane((3, b), 1)))
 

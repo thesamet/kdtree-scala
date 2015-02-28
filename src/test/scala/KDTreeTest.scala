@@ -1,17 +1,16 @@
 package com.thesamet.spatial
 
 import org.scalatest._
-import org.scalatest.matchers.ShouldMatchers
 
-class DimOrderingTest extends FlatSpec with ShouldMatchers {
+class DimOrderingTest extends FlatSpec with Matchers {
   "dimOrderingFromTuple2" should "provide compareProjection that works" in {
     val dimOrd = DimensionalOrdering.dimensionalOrderingForTuple2[Int]
     dimOrd.dimensions should equal (2)
     dimOrd.compareProjection(0)((4, 7), (6, 3)) should be < (0)
     dimOrd.compareProjection(1)((4, 7), (6, 3)) should be > (0)
-    dimOrd.compareProjection(0)((4, 7), (4, 3)) should be === (0)
+    dimOrd.compareProjection(0)((4, 7), (4, 3)) should be (0)
     dimOrd.compareProjection(1)((4, 7), (4, 3)) should be > (0)
-    dimOrd.compareProjection(1)((4, 7), (6, 7)) should be === (0)
+    dimOrd.compareProjection(1)((4, 7), (6, 7)) should be (0)
   }
 
   "DimensionalOrdering.orderingBy" should "provide full ordering" in {
@@ -21,7 +20,7 @@ class DimOrderingTest extends FlatSpec with ShouldMatchers {
     ord0.compare((6, 7), (4, 3)) should be > (0)
     ord0.compare((4, 7), (4, 3)) should be > (0)
     ord0.compare((4, 3), (4, 7)) should be < (0)
-    ord0.compare((4, 3), (4, 3)) should be === (0)
+    ord0.compare((4, 3), (4, 3)) should be (0)
 
     val ord1 = dimOrd.orderingBy(1)
     ord1.compare((4, 7), (6, 3)) should be > (0)
@@ -29,11 +28,11 @@ class DimOrderingTest extends FlatSpec with ShouldMatchers {
     ord1.compare((4, 3), (4, 6)) should be < (0)
     ord1.compare((3, 5), (4, 5)) should be < (0)
     ord1.compare((4, 3), (4, 5)) should be < (0)
-    ord1.compare((4, 3), (4, 3)) should be === (0)
+    ord1.compare((4, 3), (4, 3)) should be (0)
   }
 }
 
-class NearestNeighborTest extends FlatSpec with ShouldMatchers {
+class NearestNeighborTest extends FlatSpec with Matchers {
   "KDTree" should "builds an empty tree" in {
     val tree = KDTree[(Int, Int)]()
     tree.size should equal (0)
@@ -110,7 +109,7 @@ class NearestNeighborTest extends FlatSpec with ShouldMatchers {
   }
 }
 
-class CollectionTest extends FlatSpec with ShouldMatchers {
+class CollectionTest extends FlatSpec with Matchers {
   val points = Seq((3, 5), (9, 4), (17, 6), (18, 7))
   val tree = KDTree.fromSeq(points)
 
@@ -136,7 +135,7 @@ class CollectionTest extends FlatSpec with ShouldMatchers {
   }
 }
 
-class KDTreeMapTest extends FlatSpec with ShouldMatchers {
+class KDTreeMapTest extends FlatSpec with Matchers {
   val map = KDTreeMap(
     (3, 5) -> "a",
     (7, 6) -> "b",

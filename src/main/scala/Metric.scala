@@ -1,5 +1,6 @@
 package com.thesamet.spatial
 
+import scala.language.implicitConversions
 import scala.math.Numeric.Implicits._
 
 /** Metric is a trait whose instances each represent a way to measure distances between
@@ -18,10 +19,10 @@ trait Metric[A, R] {
 }
 
 object Metric {
-  implicit def metricFromTuple2[A](implicit n: Numeric[A]) = new Metric[(A, A), A] {
+  implicit def metricFromTuple2[A](implicit n: Numeric[A]): Metric[(A, A), A] = new Metric[(A, A), A] {
     def distance(x: (A, A), y: (A, A)): A = {
-      val dx = (x._1 - y._1)
-      val dy = (x._2 - y._2)
+      val dx = x._1 - y._1
+      val dy = x._2 - y._2
       dx * dx + dy * dy
     }
     def planarDistance(d: Int)(x: (A, A), y: (A, A)): A = {

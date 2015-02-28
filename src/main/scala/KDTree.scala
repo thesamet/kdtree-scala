@@ -1,13 +1,14 @@
 package com.thesamet.spatial
 
 import scala.annotation.tailrec
-import scala.math.Ordering.Implicits._
-import scala.math.Numeric.Implicits._
-import scala.collection.{ IterableLike, MapLike }
 import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.{ ArrayBuffer, Builder }
+import scala.collection.mutable.{ArrayBuffer, Builder}
+import scala.collection.{IterableLike, MapLike}
+import scala.language.implicitConversions
+import scala.math.Ordering.Implicits._
 
-class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends IterableLike[A, KDTree[A]] {
+class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A])
+  extends Iterable[A] with IterableLike[A, KDTree[A]] with Serializable {
   override def seq = this
 
   override def size: Int = root.size
@@ -21,11 +22,11 @@ class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: Dimensional
 
   def regionQuery(region: Region[A]): Seq[A] = root.regionQuery(region) map (_._1)
 
-  def newBuilder: Builder[A, KDTree[A]] = KDTree.newBuilder
+  override def newBuilder: Builder[A, KDTree[A]] = KDTree.newBuilder
 }
 
 class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: DimensionalOrdering[A])
-  extends Map[A, B] with MapLike[A, B, KDTreeMap[A, B]] {
+  extends Map[A, B] with MapLike[A, B, KDTreeMap[A, B]] with Serializable {
 
   override def empty: KDTreeMap[A, B] = KDTreeMap.empty[A, B](ord)
 
@@ -44,7 +45,7 @@ class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: Dimensional
   def -(key: A): KDTreeMap[A, B] = KDTreeMap.fromSeq(toSeq.filter(_._1 != key))
 }
 
-sealed trait KDTreeNode[A, B] {
+sealed trait KDTreeNode[A, B] extends Serializable {
   override def toString = toStringSeq(0) mkString "\n"
   def toStringSeq(indent: Int): Seq[String]
   def size: Int
@@ -67,7 +68,7 @@ sealed trait KDTreeNode[A, B] {
 
 case class KDTreeInnerNode[A, B](
   dim: Int, key: A, value: B, below: KDTreeNode[A, B], above: KDTreeNode[A, B])(
-    ordering: Ordering[A]) extends KDTreeNode[A, B] {
+    ordering: Ordering[A]) extends KDTreeNode[A, B] with Serializable {
   def toStringSeq(indent: Int) = {
     val i = "  " * indent
 
@@ -90,7 +91,7 @@ case class KDTreeInnerNode[A, B](
     // Build initial set of candidates from the smallest subtree containing x with at least n
     // points.
     val minParent = KDTreeNode.findMinimalParent(this, x, withSize = n)
-    val values = (minParent.toSeq.map { p => (p, metric.distance(x, p._1)) }).sortBy(_._2).take(n)
+    val values = minParent.toSeq.map { p => (p, metric.distance(x, p._1))}.sortBy(_._2).take(n)
     findNearest0(x, n, minParent, values) map { _._1 }
   }
 
@@ -102,7 +103,7 @@ case class KDTreeInnerNode[A, B](
       val currentBest = values.last._2
 
       val newValues = if (myDist < currentBest) {
-        (values :+ ((key, value), myDist)) sortBy (_._2) take (n)
+        (values :+ ((key, value), myDist)) sortBy (_._2) take n
       } else values
       val newCurrentBest = values.last._2
 
@@ -133,7 +134,7 @@ case class KDTreeInnerNode[A, B](
   def toSeq: Seq[(A, B)] = below.toSeq ++ Seq((key, value)) ++ above.toSeq
 }
 
-case class KDTreeEmpty[A, B]() extends KDTreeNode[A, B] {
+case class KDTreeEmpty[A, B]() extends KDTreeNode[A, B] with Serializable {
   def toStringSeq(indent: Int) = Seq(("  " * indent) + "[Empty]")
   def size = 0
   def isEmpty = true
@@ -155,7 +156,7 @@ object KDTreeNode {
       (sp(medIndex), sp.take(medIndex), sp.drop(medIndex + 1))
     }
 
-    if (points.isEmpty) KDTreeEmpty[A, B]
+    if (points.isEmpty) KDTreeEmpty[A, B]()
     else {
       val i = depth % ord.dimensions
       val ((key, value), below, above) = findSplit(points, i)
@@ -175,9 +176,9 @@ object KDTreeNode {
 }
 
 object KDTree {
-  def apply[A](points: A*)(implicit ord: DimensionalOrdering[A]) = fromSeq(points)
+  def apply[A](points: A*)(implicit ord: DimensionalOrdering[A]): KDTree[A] = fromSeq(points)
 
-  def fromSeq[A](points: Seq[A])(implicit ord: DimensionalOrdering[A]) = {
+  def fromSeq[A](points: Seq[A])(implicit ord: DimensionalOrdering[A]): KDTree[A] = {
     assert(ord.dimensions >= 1)
     new KDTree(KDTreeNode.buildTreeNode(0, points map { (_, true) }))
   }
@@ -186,7 +187,7 @@ object KDTree {
     new ArrayBuffer[A]() mapResult (x => KDTree.fromSeq(x))
 
   implicit def canBuildFrom[B](implicit ordB: DimensionalOrdering[B]): CanBuildFrom[KDTree[_], B, KDTree[B]] = new CanBuildFrom[KDTree[_], B, KDTree[B]] {
-    def apply: Builder[B, KDTree[B]] = newBuilder(ordB)
+    def apply(): Builder[B, KDTree[B]] = newBuilder(ordB)
     def apply(from: KDTree[_]): Builder[B, KDTree[B]] = newBuilder(ordB)
   }
 }
@@ -194,8 +195,8 @@ object KDTree {
 object KDTreeMap {
   def empty[A, B](implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] = KDTreeMap()
 
-  def apply[A, B](points: (A, B)*)(implicit ord: DimensionalOrdering[A]) = fromSeq(points)
+  def apply[A, B](points: (A, B)*)(implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] = fromSeq(points)
 
-  def fromSeq[A, B](points: Seq[(A, B)])(implicit ord: DimensionalOrdering[A]) =
+  def fromSeq[A, B](points: Seq[(A, B)])(implicit ord: DimensionalOrdering[A]): KDTreeMap[A, B] =
     new KDTreeMap(KDTreeNode.buildTreeNode(0, points))
 }
