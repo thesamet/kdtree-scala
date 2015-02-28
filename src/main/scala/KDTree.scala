@@ -1,13 +1,12 @@
 package com.thesamet.spatial
 
 import scala.annotation.tailrec
-import scala.math.Ordering.Implicits._
-import scala.math.Numeric.Implicits._
-import scala.collection.{ IterableLike, MapLike }
 import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.{ ArrayBuffer, Builder }
+import scala.collection.mutable.{ArrayBuffer, Builder}
+import scala.collection.{IterableLike, MapLike}
+import scala.math.Ordering.Implicits._
 
-class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends IterableLike[A, KDTree[A]] {
+class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: DimensionalOrdering[A]) extends Iterable[A] with IterableLike[A, KDTree[A]] {
   override def seq = this
 
   override def size: Int = root.size
@@ -21,7 +20,7 @@ class KDTree[A] private (root: KDTreeNode[A, Boolean])(implicit ord: Dimensional
 
   def regionQuery(region: Region[A]): Seq[A] = root.regionQuery(region) map (_._1)
 
-  def newBuilder: Builder[A, KDTree[A]] = KDTree.newBuilder
+  override def newBuilder: Builder[A, KDTree[A]] = KDTree.newBuilder
 }
 
 class KDTreeMap[A, B] private (root: KDTreeNode[A, B])(implicit ord: DimensionalOrdering[A])
