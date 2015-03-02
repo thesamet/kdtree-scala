@@ -1,8 +1,12 @@
+import SonatypeKeys._
+import sbtrelease._
+import ReleaseStateTransformations._
+
+sonatypeSettings
+
 organization := "com.thesamet"
 
 name := "kdtree"
-
-version := "1.0.1"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 
@@ -17,6 +21,8 @@ publishMavenStyle := true
 publishArtifact in Test := false
 
 pomIncludeRepository := { x => false }
+
+releaseSettings
 
 pomExtra := (
   <url>https://github.com/thesamet/kdtree-scala</url>
@@ -40,10 +46,3 @@ pomExtra := (
   </developers>
 )
 
-publishTo <<= version { v: String =>
-  val nexus = "https://oss.sonatype.org/"
-  if (v.trim.endsWith("SNAPSHOT"))
-    Some("snapshots" at nexus + "content/repositories/snapshots")
-  else
-    Some("releases" at nexus + "service/local/staging/deploy/maven2")
-}
