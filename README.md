@@ -12,7 +12,7 @@ Add the following to your `build.sbt`:
 
     resolvers += "Sonatype OSS Releases" at "http://oss.sonatype.org/content/repositories/releases/"
 
-    libraryDependencies += "com.thesamet" %% "kdtree" % "1.0.1"
+    libraryDependencies += "com.thesamet" %% "kdtree" % "1.0.3"
 
 Examples
 --------
