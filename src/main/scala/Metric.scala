@@ -30,4 +30,19 @@ object Metric {
       dd * dd
     }
   }
+  implicit def metricFromSeq[A](implicit n: Numeric[A]): Metric[Seq[A], A] = new Metric[Seq[A], A] {
+    /** Returns the distance between two points. */
+    override def distance(x: Seq[A], y: Seq[A]): A = x.zip(y).map{z=>
+      val d = z._1-z._2
+      d*d
+    }.sum
+
+    /** Returns the distance between x and a hyperplane that passes through y and perpendicular to
+      * that dimension.
+      */
+    override def planarDistance(dimension: Int)(x: Seq[A], y: Seq[A]): A = {
+      val dd = x(dimension) - y(dimension)
+      dd*dd
+    }
+  }
 }
