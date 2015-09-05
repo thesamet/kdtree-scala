@@ -47,11 +47,18 @@ trait DimensionalOrdering[A] extends Serializable{
 }
 
 object DimensionalOrdering {
-  def dimensionalOrderingForTuple[T <: Product,A](dim: Int)(implicit ord: Ordering[A]): DimensionalOrdering[T] =
+  def dimensionalOrderingForTuple[T <: Product, A ](dim: Int)(implicit ord: Ordering[A]): DimensionalOrdering[T] =
+    new DimensionalOrdering[T] {
+      val dimensions = dim
+
+      def compareProjection(d: Int)(x: T, y: T) = ord.compare(
+        x.productElement(d).asInstanceOf[A], y.productElement(d).asInstanceOf[A])
+    }
+   def dimensionalOrderingForSeq[T <: Seq[A], A ](dim: Int)(implicit ord: Ordering[A]): DimensionalOrdering[T] =
     new DimensionalOrdering[T] {
       val dimensions = dim
       def compareProjection(d: Int)(x: T, y: T) = ord.compare(
-        x.productElement(d).asInstanceOf[A], y.productElement(d).asInstanceOf[A])
+        x(d), y(d))
     }
 
   implicit def dimensionalOrderingForTuple2[A](implicit ord: Ordering[A]): DimensionalOrdering[(A, A)] =
@@ -65,4 +72,9 @@ object DimensionalOrdering {
 
   implicit def dimensionalOrderingForTuple5[A](implicit ord: Ordering[A]): DimensionalOrdering[(A, A, A, A, A)] =
     dimensionalOrderingForTuple[(A, A, A, A, A), A](5)
+
+  implicit def dimensionalOrderingForVector[A](x:Seq[A])(implicit ord: Ordering[A]): DimensionalOrdering[Seq[A]] =
+    dimensionalOrderingForSeq[Seq[A], A](x.size)
+
+
 }
