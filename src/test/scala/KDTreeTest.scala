@@ -25,13 +25,12 @@ class DimOrderingTest extends FlatSpec with Matchers {
 
   "dimOrderingFromVector" should "provide compareProjection that works" in {
     val pointsMtx = Seq(Seq(3,5,6,6,6,6), Seq(9,4,5,6,7,8), Seq(17, 6,9,9,9,9))
-    val dimOrdx = DimensionalOrdering.dimensionalOrderingForVector(pointsMtx.head)
-    dimOrdx.dimensions should equal (2)
-    dimOrdx.compareProjection(0)(Seq(4, 7), Seq(6, 3)) should be < 0
-    dimOrdx.compareProjection(1)(Seq(4, 7), Seq(6, 3)) should be > 0
-    dimOrdx.compareProjection(0)(Seq(4, 7), Seq(4, 3)) should be (0)
-    dimOrdx.compareProjection(1)(Seq(4, 7), Seq(4, 3)) should be > 0
-    dimOrdx.compareProjection(1)(Seq(4, 7), Seq(6, 7)) should be (0)
+    val dimOrdx = DimensionalOrdering.dimensionalOrderingForSeq[Seq[Int], Int](6)
+    dimOrdx.dimensions should equal (6)
+    dimOrdx.compareProjection(0)(pointsMtx(0), pointsMtx(1)) should be < 0
+    dimOrdx.compareProjection(0)(pointsMtx(1), pointsMtx(2)) should be < 0
+    dimOrdx.compareProjection(0)(pointsMtx(1), pointsMtx(1)) should be (0)
+    dimOrdx.compareProjection(0)(pointsMtx(2), pointsMtx(1)) should be > 0
   }
 
   "DimensionalOrdering.orderingBy" should "provide full ordering" in {
@@ -95,7 +94,7 @@ class NearestNeighborTest extends FlatSpec with Matchers {
 
   it should "build a tree of n points" in {
     val points = Seq(Seq(3, 5), Seq(9, 4), Seq(17, 6), Seq(18, 7))
-    val tree = KDTree.fromSeq(points)(DimensionalOrdering.dimensionalOrderingForVector(points.head))
+    val tree = KDTree.fromSeq(points)(DimensionalOrdering.dimensionalOrderingForSeq[Seq[Int], Int](2))
     tree.size should equal(4)
     tree.findNearest(Seq(3, 5), 1) should equal (Seq(Seq(3, 5)))
     tree.findNearest(Seq(9, 4), 1) should equal (Seq(Seq(9, 4)))
@@ -158,9 +157,6 @@ class CollectionTest extends FlatSpec with Matchers {
   val tree = KDTree.fromSeq(points)
   val pointsMtx = Seq(Seq(3,5,6,6,6,6), Seq(9,4,5,6,7,8), Seq(17, 6,9,9,9,9))
   val p = pointsMtx(0)
-
-  val treeMtx = KDTree.fromSeq( pointsMtx)(DimensionalOrdering.dimensionalOrderingForVector(pointsMtx(0)))
-
 
   "KDTree as Iterable" should "iterate over all elements" in {
     val s = tree.iterator.toList

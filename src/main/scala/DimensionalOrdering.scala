@@ -74,7 +74,4 @@ object DimensionalOrdering {
 
   implicit def dimensionalOrderingForTuple5[A](implicit ord: Ordering[A]): DimensionalOrdering[(A, A, A, A, A)] =
     dimensionalOrderingForTuple[(A, A, A, A, A), A](5)
-
-  implicit def dimensionalOrderingForVector[A](x:Seq[A])(implicit ord: Ordering[A]): DimensionalOrdering[Seq[A]] =
-    dimensionalOrderingForSeq[Seq[A], A](x.size)
 }
