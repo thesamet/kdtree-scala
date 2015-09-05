@@ -3,14 +3,35 @@ package com.thesamet.spatial
 import org.scalatest._
 
 class DimOrderingTest extends FlatSpec with Matchers {
+  "dimensionalOrderingForSeq" should "provide compareProjection that works" in {
+    val dimOrd = DimensionalOrdering.dimensionalOrderingForSeq[Seq[Int],Int](2)
+    dimOrd.dimensions should equal (2)
+    dimOrd.compareProjection(0)(Seq(4, 7), Seq(6, 3)) should be < 0
+    dimOrd.compareProjection(1)(Seq(4, 7), Seq(6, 3)) should be > 0
+    dimOrd.compareProjection(0)(Seq(4, 7), Seq(4, 3)) should be (0)
+    dimOrd.compareProjection(1)(Seq(4, 7), Seq(4, 3)) should be > 0
+    dimOrd.compareProjection(1)(Seq(4, 7), Seq(6, 7)) should be (0)
+  }
+
   "dimOrderingFromTuple2" should "provide compareProjection that works" in {
     val dimOrd = DimensionalOrdering.dimensionalOrderingForTuple2[Int]
     dimOrd.dimensions should equal (2)
-    dimOrd.compareProjection(0)((4, 7), (6, 3)) should be < (0)
-    dimOrd.compareProjection(1)((4, 7), (6, 3)) should be > (0)
+    dimOrd.compareProjection(0)((4, 7), (6, 3)) should be < 0
+    dimOrd.compareProjection(1)((4, 7), (6, 3)) should be > 0
     dimOrd.compareProjection(0)((4, 7), (4, 3)) should be (0)
-    dimOrd.compareProjection(1)((4, 7), (4, 3)) should be > (0)
+    dimOrd.compareProjection(1)((4, 7), (4, 3)) should be > 0
     dimOrd.compareProjection(1)((4, 7), (6, 7)) should be (0)
+  }
+
+  "dimOrderingFromVector" should "provide compareProjection that works" in {
+    val pointsMtx = Seq(Seq(3,5,6,6,6,6), Seq(9,4,5,6,7,8), Seq(17, 6,9,9,9,9))
+    val dimOrdx = DimensionalOrdering.dimensionalOrderingForVector(pointsMtx.head)
+    dimOrdx.dimensions should equal (2)
+    dimOrdx.compareProjection(0)(Seq(4, 7), Seq(6, 3)) should be < 0
+    dimOrdx.compareProjection(1)(Seq(4, 7), Seq(6, 3)) should be > 0
+    dimOrdx.compareProjection(0)(Seq(4, 7), Seq(4, 3)) should be (0)
+    dimOrdx.compareProjection(1)(Seq(4, 7), Seq(4, 3)) should be > 0
+    dimOrdx.compareProjection(1)(Seq(4, 7), Seq(6, 7)) should be (0)
   }
 
   "DimensionalOrdering.orderingBy" should "provide full ordering" in {
@@ -72,6 +93,27 @@ class NearestNeighborTest extends FlatSpec with Matchers {
     tree.contains((1,1)) should equal (false)
   }
 
+  it should "build a tree of n points" in {
+    val points = Seq(Seq(3, 5), Seq(9, 4), Seq(17, 6), Seq(18, 7))
+    val tree = KDTree.fromSeq(points)(DimensionalOrdering.dimensionalOrderingForVector(points.head))
+    tree.size should equal(4)
+    tree.findNearest(Seq(3, 5), 1) should equal (Seq(Seq(3, 5)))
+    tree.findNearest(Seq(9, 4), 1) should equal (Seq(Seq(9, 4)))
+    tree.findNearest(Seq(17, 6), 1) should equal (Seq(Seq(17, 6)))
+    tree.findNearest(Seq(18, 7), 1) should equal (Seq(Seq(18, 7)))
+
+    tree.findNearest(Seq(3, 5), 2) should equal (Seq(Seq(3, 5), Seq(9, 4)))
+    tree.findNearest(Seq(9, 4), 2) should equal (Seq(Seq(9, 4), Seq(3, 5)))
+    tree.findNearest(Seq(6, 6), 3) should equal (Seq(Seq(3, 5), Seq(9, 4), Seq(17, 6)))
+    tree.findNearest(Seq(6, 6), 4) should equal (Seq(Seq(3, 5), Seq(9, 4), Seq(17, 6), Seq(18, 7)))
+    tree.findNearest(Seq(6, 6), 5) should equal (Seq(Seq(3, 5), Seq(9, 4), Seq(17, 6), Seq(18, 7)))
+    tree.findNearest(Seq(6, 6), 12) should equal (Seq(Seq(3, 5), Seq(9, 4), Seq(17, 6), Seq(18, 7)))
+    for { pt <- points } {
+      tree.contains(pt) should equal (true)
+    }
+    tree.contains(Seq(1,1)) should equal (false)
+  }
+
   it should "build a large tree" in {
     val points = for { y <- 1 to 100; x <- 1 to 100 } yield (x, y)
     val t = KDTree.fromSeq(points)
@@ -79,8 +121,8 @@ class NearestNeighborTest extends FlatSpec with Matchers {
       val near = t.findNearest((x, y), 9)
       near.size should equal (9)
       near.head should equal ((x, y))
-      near.drop(1).take(4).toSet should equal (Set((x+1,y), (x-1,y), (x, y+1), (x, y-1)))
-      near.drop(5).take(4).toSet should equal (Set((x-1,y-1), (x-1, y+1), (x+1, y-1), (x+1, y+1)))
+      near.slice(1, 5).toSet should equal (Set((x+1,y), (x-1,y), (x, y+1), (x, y-1)))
+      near.slice(5, 9).toSet should equal (Set((x-1,y-1), (x-1, y+1), (x+1, y-1), (x+1, y+1)))
     }
 
     t.findNearest((100, 1), 4).toSet should equal (
@@ -104,14 +146,21 @@ class NearestNeighborTest extends FlatSpec with Matchers {
 
     t.regionQuery(
       Region from((35, 0), 0) to((43, 0), 0) from((0, 81), 1) to((0, 84), 1)
-      ).toSet should equal ((for {
-        x <- 35 to 43; y <- 81 to 84} yield (x, y)).toSet)
+    ).toSet should equal ((for {
+      x <- 35 to 43; y <- 81 to 84} yield (x, y)).toSet)
   }
+
+
 }
 
 class CollectionTest extends FlatSpec with Matchers {
   val points = Seq((3, 5), (9, 4), (17, 6), (18, 7))
   val tree = KDTree.fromSeq(points)
+  val pointsMtx = Seq(Seq(3,5,6,6,6,6), Seq(9,4,5,6,7,8), Seq(17, 6,9,9,9,9))
+  val p = pointsMtx(0)
+
+  val treeMtx = KDTree.fromSeq( pointsMtx)(DimensionalOrdering.dimensionalOrderingForVector(pointsMtx(0)))
+
 
   "KDTree as Iterable" should "iterate over all elements" in {
     val s = tree.iterator.toList
@@ -169,4 +218,3 @@ class KDTreeMapTest extends FlatSpec with Matchers {
     newMap.get((12, 7)) should equal (Some("c"))
   }
 }
-
