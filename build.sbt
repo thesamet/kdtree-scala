@@ -14,7 +14,7 @@ scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 scalaVersion := "2.10.4"
 
-crossScalaVersions := Seq("2.12.2", "2.11.11", "2.10.6")
+crossScalaVersions := Seq("2.12.11", "2.11.12", "2.10.6")
 
 publishMavenStyle := true
 
